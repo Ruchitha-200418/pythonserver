@@ -3,49 +3,91 @@ import mysql.connector
 
 app = Flask(__name__)
 
-# Database connection config
-db_config = {
-    'host': 'localhost',
-    'user': 'root',           # change if you use another user
-    'password': '',           # put your MySQL password (empty if none)
-    'database': 'your_database'
-}
+# ---------- Database Connection ----------
+def get_connection():
+    return mysql.connector.connect(
+        host="localhost",
+        user="root",           # your MySQL username
+        password="",  # your MySQL password
+        database="studentdb"      # your database name
+    )
 
-# Home page: list all users
-@app.route('/')
+
+# ---------- Home Page ----------
+@app.route("/")
 def index():
-    conn = mysql.connector.connect(**db_config)
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, name, email FROM users")
-    users = cursor.fetchall()
-    cursor.close()
+    cursor.execute("SELECT * FROM students")
+    students = cursor.fetchall()
     conn.close()
-    return render_template("index.html", users=users)
+    return render_template("index.html", students=students)
 
-# Add user
-@app.route('/add', methods=['POST'])
-def add_user():
-    name = request.form['name']
-    email = request.form['email']
 
-    conn = mysql.connector.connect(**db_config)
+# ---------- Add Student ----------
+@app.route("/add", methods=["GET", "POST"])
+def add():
+    if request.method == "POST":
+        name = request.form["name"]
+        email = request.form["email"]
+        birthday = request.form["birthday"]
+        phone = request.form["phone"]
+        course = request.form["course"]
+        address = request.form["address"]
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO students (name, email, birthday, phone, course, address)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (name, email, birthday, phone, course, address))
+        conn.commit()
+        conn.close()
+        return redirect(url_for("index"))
+
+    return render_template("add.html")
+
+
+# ---------- Edit Student ----------
+@app.route("/edit/<int:id>", methods=["GET", "POST"])
+def edit(id):
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO users (name, email) VALUES (%s, %s)", (name, email))
+
+    if request.method == "POST":
+        name = request.form["name"]
+        email = request.form["email"]
+        birthday = request.form["birthday"]
+        phone = request.form["phone"]
+        course = request.form["course"]
+        address = request.form["address"]
+
+        cursor.execute("""
+            UPDATE students
+            SET name=%s, email=%s, birthday=%s, phone=%s, course=%s, address=%s
+            WHERE id=%s
+        """, (name, email, birthday, phone, course, address, id))
+
+        conn.commit()
+        conn.close()
+        return redirect(url_for("index"))
+
+    cursor.execute("SELECT * FROM students WHERE id=%s", (id,))
+    student = cursor.fetchone()
+    conn.close()
+    return render_template("edit.html", student=student)
+
+
+# ---------- Delete Student ----------
+@app.route("/delete/<int:id>")
+def delete(id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM students WHERE id=%s", (id,))
     conn.commit()
-    cursor.close()
     conn.close()
-    return redirect(url_for('index'))
+    return redirect(url_for("index"))
 
-# Delete user
-@app.route('/delete/<int:id>')
-def delete_user(id):
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM users WHERE id = %s", (id,))
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return redirect(url_for('index'))
 
 if __name__ == "__main__":
     app.run(debug=True)
